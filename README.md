@@ -15,7 +15,7 @@ Data corresponding to the paper "Rediscovery of Michell structures through discr
  This file contains methods for linear structural analysis and shape optimization of truss structures.
  
 ### GraphicStatics.py
- This file contains methods related to graphic statics. Note that this method properly works only when 2D and DHF.Diagonal_Lines_Connectivity_One method is used in Step 4 in Part1 of main.py. 
+ This file contains methods related to graphic statics.
 
 ### Draw.py
  Methods to draw diagrams.
