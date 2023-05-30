@@ -776,8 +776,17 @@ def Axial_Force_Determinate(node,member,fix,load):
     internal_force[nm] : axial force of bar members
     '''
     aa, aa_full, selfforce = Self_Equilibrium_Matrix(node,member,fix,False)
-    p_free = load.flatten()[~fix.flatten()]
-    internal_force = np.linalg.inv(aa)@p_free
+    if aa.shape[0] == aa.shape[1]:
+        p_free = load.flatten()[~fix.flatten()]
+        internal_force = np.linalg.inv(aa)@p_free
+    else:
+        u,s,vh = np.linalg.svd(aa)
+        rank = np.linalg.matrix_rank(aa)
+        orthogonality = u.T[rank:]@load[~fix]
+        if np.all(np.isclose(orthogonality,0.0)):
+            raise Exception("The equilibrium matrix is not square. However, there is an equilibrium state for this load condition.")
+        else:
+            raise Exception("The equilibrium matrix is not square. Also, there is no equilibirum state for this load condition.")
     
     return internal_force
 

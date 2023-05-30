@@ -24,17 +24,32 @@ def Quads_in(F,N_u,N_v,param_scale=1,shape_scale=1):
     return pts*shape_scale, quads
 
 def Cross_Ratio(pts,quads):
+
     cr = np.empty(len(quads))
     f = pts[:,0] + 1j*pts[:,1]
     cr = (f[quads[:,0]]-f[quads[:,1]])*(f[quads[:,2]]-f[quads[:,3]])/((f[quads[:,1]]-f[quads[:,2]])*(f[quads[:,3]]-f[quads[:,0]]))
-    # for i,quad in enumerate(quads):
-    #     cr[i] = (f[quad[0]]-f[quad[1]])*(f[quad[2]]-f[quad[3]])/((f[quad[1]]-f[quad[2]])*(f[quad[3]]-f[quad[0]]))
+    
     return cr
 
-def Stereographic_Projection(pts_in, autoscale=True):
+def Inverse_Stereographic_Projection(pts_in, autoscale=True):
+
     ds = 1 + pts_in[:,0]**2 + pts_in[:,1]**2
     pts_out = 2*pts_in/ds[:,np.newaxis]
     pts_out[:,2] = (-1 + pts_in[:,0]**2 + pts_in[:,1]**2)/ds
+    if autoscale:
+        scale = Scale(pts_in,pts_out)
+    else:
+        scale = 1.0
+
+    return pts_out*scale
+
+def Stereographic_Projection(pts_in, autoscale=True):
+
+    l = np.linalg.norm(pts_in,axis=1)
+    if np.any(np.abs(l-1.0)>1e-10):
+        raise Exception("Input nodal positions must satisfy x^2+y^2+z^2=1 to implement Stereographic projection.")
+    pts_out = np.zeros_like(pts_in)
+    pts_out[:,0:2] = pts_in[:,0:2]/np.expand_dims(1-pts_in[:,2],1)
     if autoscale:
         scale = Scale(pts_in,pts_out)
     else:
@@ -98,114 +113,92 @@ def Rotation_by_vector(node,v,theta):
         )
     return (rot@node.T).T
 
-def Diagonal_Lines_Connectivity(N_u,N_v):
+def Flip_V(pts_in,N_u,N_v):
+    '''
+    Flip the nodal indexing in u direction.
+    '''
+    pts_out = np.empty_like(pts_in)
+    for i in range(N_v+1):
+        pts_out[(N_u+1)*i:(N_u+1)*(i+1)] = pts_in[(N_u+1)*i:(N_u+1)*(i+1)][::-1]
+    return pts_out
 
-    A = [(N_u+1)*m+n if (m+n)%2==0 else (N_u+1)*m+n+1 for n in range(N_u) for m in range(N_v)]
-    B = [(N_u+1)*(m+1)+n+1 if (m+n)%2==0 else (N_u+1)*(m+1)+n for n in range(N_u) for m in range(N_v)]
+def Diagonal_Lines_Connectivity(N_u,N_v,flip=True):
+    '''
+    Create a Michell-like wheel topology from grid information N_u and N_v.
+
+    (input)
+    N_u<int>: number of grids in n direction
+    N_v<int>: number of grids in m direction
+    flip<bool>: If True, flip the diagonals and take the members next to those in the case "Flip=False".
+
+    (output)
+    diag_c[idx,2]<int>: connectivity of bar members comprising a Michell-like structure
+    fix_i[:]<int>: indices of the fixed nodes
+    load_i[1]<int>: index of the loaded node
+    '''
+
+    if flip:
+        shift = 1
+    else:
+        shift = 0
+
+    A = [(N_u+1)*m+n if (m+n)%2==shift else (N_u+1)*m+n+1 for n in range(N_u) for m in range(N_v)]
+    B = [(N_u+1)*(m+1)+n+1 if (m+n)%2==shift else (N_u+1)*(m+1)+n for n in range(N_u) for m in range(N_v)]
 
     diag_c = np.vstack((A,B)).T
-    load_i = np.array([(N_u+1)*(i+1)-1 for i in range(0,N_v+1,2)],dtype=int)
-    fix_i = np.array([(N_u+1)*i for i in range(0,N_v+1,2)],dtype=int)
-    # fix_i2 = np.arange(N_u+1,dtype=int)
-    # fix_i3 = (N_u+1)*(N_v+1)-np.arange(N_u+1,dtype=int)-1
-    # fix_i = np.unique(np.concatenate([fix_i,fix_i2,fix_i3]))
+    load_i = np.array([(N_u+1)*(i+1)-1 for i in range(shift,N_v+1,2)],dtype=int)
+    fix_i = np.array([(N_u+1)*i for i in range(shift,N_v+1,2)],dtype=int)
     
     return diag_c, fix_i, load_i
 
-def Diagonal_Lines_Connectivity_One(N_u,N_v):
+def Diagonal_Lines_Connectivity_Partial(N_u,N_v,flip=False,load="tip"):
     '''
-    Create a Michell-like topology from grid information N_u and N_v.
+    Create a partial Michell-like topology from grid information N_u and N_v.
 
     (input)
     N_u<int>: number of grids in n direction
     N_v<int>: number of grids in m direction
+    flip<bool>: If True, flip the diagonals and take the members next to those in the case "Flip=False".
+    load<str>: "tip": the load is applied to tip node only
+               "outer": the load is applied to outer free nodes
 
     (output)
     diag_c[idx,2]<int>: connectivity of bar members comprising a Michell-like structure
     fix_i[:]<int>: indices of the fixed nodes
-    load_i[1]<int>: index of the loaded node
+    load_i[1]<int>: index of the loaded node (tip node only)
     '''
+    if N_u*2 != N_v:
+        raise Exception("If using the Diagonal_Lines_Connectivity_One method, please make sure that N_u*2 == N_v.")
+    
+    if flip:
+        shift = 1
+    else:
+        shift = 0
 
-    A = [(N_u+1)*m+n if (m+n)%2==0 else (N_u+1)*m+n+1 for m in range(N_v) for n in range(N_u) ]
-    B = [(N_u+1)*(m+1)+n+1 if (m+n)%2==0 else (N_u+1)*(m+1)+n for m in range(N_v) for n in range(N_u) ]
+    if load == "tip":
+        load_i = np.array([(N_u+1)*(N_u+1-shift)-1],dtype=int)
+    elif load == "outer":
+        li = []
+        for i in range(1,N_v//2):
+            li.append((N_u+2)*i)
+        midload_i = (N_u+2)*N_v//2
+        for i in range(N_v//2,N_v):
+            li.append(midload_i+N_u*(i-N_v//2))
+        load_i = (np.array(li)-shift*(N_u+1))%((N_u+1)*(N_v+1))      
+        
+    A = [(N_u+1)*m+n if (m+n)%2==shift else (N_u+1)*m+n+1 for m in range(N_v) for n in range(N_u) ]
+    B = [(N_u+1)*(m+1)+n+1 if (m+n)%2==shift else (N_u+1)*(m+1)+n for m in range(N_v) for n in range(N_u) ]
 
     diag_c = np.vstack((A,B)).T
     idx = []
-    for i in range(0,N_v):
+    for i in range(N_v):
         if i<N_v//2:
             rep = i+1
         else:
             rep = N_v-i
         for j in range(rep):
-            idx.append(N_u*i+j)
+            idx.append(N_u*(i-shift)+j)
 
     fix_i = np.arange(N_v+1)*(N_u+1)
-    load_i = np.array([(N_u+2)*(N_v)/2],dtype=int)
-
-    return diag_c[idx], fix_i, load_i
-
-def Diagonal_Lines_Connectivity_One2(N_u,N_v):
-    '''
-    Create a Michell-like topology from grid information N_u and N_v.
-
-    (input)
-    N_u<int>: number of grids in n direction
-    N_v<int>: number of grids in m direction
-
-    (output)
-    diag_c[idx,2]<int>: connectivity of bar members comprising a Michell-like structure
-    fix_i[:]<int>: indices of the fixed nodes
-    load_i[1]<int>: index of the loaded node
-    '''
-
-    A = [(N_u+1)*m+n if (m+n)%2==0 else (N_u+1)*m+n+1 for m in range(N_v) for n in range(N_u) ]
-    B = [(N_u+1)*(m+1)+n+1 if (m+n)%2==0 else (N_u+1)*(m+1)+n for m in range(N_v) for n in range(N_u) ]
-
-    diag_c = np.vstack((A,B)).T
-    idx = []
-    for i in range(0,N_v):
-        if i<N_v//2:
-            rep = i+1
-        else:
-            rep = N_v-i
-        for j in range(rep):
-            idx.append(N_u*i+j)
-
-    fix_i = np.arange(N_v+1)*(N_u+1)
-    li = []
-    for i in range(1,N_v//2):
-        li.append((N_u+2)*i)
-    midload_i = (N_u+2)*N_v//2
-    for i in range(N_v//2,N_v):
-        li.append(midload_i+N_u*(i-N_v//2))
-    load_i = np.array(li)
-
-    return diag_c[idx], fix_i, load_i
-
-def Diagonal_Lines_Connectivity_One3(N_u,N_v):
-    '''
-    Create a Michell-like topology from grid information N_u and N_v.
-
-    (input)
-    N_u<int>: number of grids in n direction
-    N_v<int>: number of grids in m direction
-
-    (output)
-    diag_c[idx,2]<int>: connectivity of bar members comprising a Michell-like structure
-    fix_i[:]<int>: indices of the fixed nodes
-    load_i[1]<int>: index of the loaded node
-    '''
-
-    A = [(N_u+1)*m+n if (m+n)%2==0 else (N_u+1)*m+n+1 for m in range(N_v) for n in range(N_u) ]
-    B = [(N_u+1)*(m+1)+n+1 if (m+n)%2==0 else (N_u+1)*(m+1)+n for m in range(N_v) for n in range(N_u) ]
-
-    diag_c = np.vstack((A,B)).T
-    fix_i = np.arange(N_u+1)
-    idx = []
-
-    for i in range(0,N_v//2):
-        for j in range(i,N_u-i):
-            idx.append(N_u*i+j)
-    load_i = np.array([(N_u+2)*(N_v)/2],dtype=int)
 
     return diag_c[idx], fix_i, load_i

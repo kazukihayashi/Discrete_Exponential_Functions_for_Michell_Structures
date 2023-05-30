@@ -3,7 +3,79 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from operator import itemgetter
 
-def Dual_Isothermic(pts,members,fix,load,internal_load=None):
+def Dual_Quad(pts,quad,nu,nv):
+
+    if pts.shape[1] == 3:
+        pts = pts[:,:2]
+
+    pts_out = np.empty_like(pts)*np.nan # initialize with nan
+    pts_out[quad[0,[0,1]]] = pts[quad[0,[0,1]]]
+    for v in range(nv):
+        for u in range(nu):
+            index = quad[nu*v+u]
+            pts_out[index] = Christoffel_Quad_One(pts[index],pts_out[index])
+
+    pts_out = np.hstack([pts_out,np.zeros((pts.shape[0],1))])
+
+    return pts_out
+
+def Christoffel_Quad_One(pts_four_in,pts_four_out):
+    '''
+    pts_four_in[4,2]: input four corners of a quad element, aligned in anti-clockwise direction
+    pts_four_out[4,2]: known four corner positions of the Christoffel transform, aligned in clockwise direction.
+                       NaN if the position is unknown
+    '''
+    assert np.any(np.isnan(pts_four_out)), "pts_four_out are all unknown."
+
+    if np.all(~np.isnan(pts_four_out[[0,3]])): # fliped line position is known
+        if np.any(np.isnan(pts_four_out[1])):
+            pts_four_out[1] = Intersection_2D(np.vstack([pts_four_out[0],pts_four_out[0]+pts_four_in[0]-pts_four_in[1]]),np.vstack([pts_four_out[3],pts_four_out[3]+pts_four_in[0]-pts_four_in[2]]))
+        if np.any(np.isnan(pts_four_out[2])):
+            pts_four_out[2] = Intersection_2D(np.vstack([pts_four_out[0],pts_four_out[0]+pts_four_in[1]-pts_four_in[3]]),np.vstack([pts_four_out[3],pts_four_out[3]+pts_four_in[2]-pts_four_in[3]]))
+    elif np.all(~np.isnan(pts_four_out[[0,1]])):
+        if np.any(np.isnan(pts_four_out[2])):
+            pts_four_out[2] = Intersection_2D(np.vstack([pts_four_out[0],pts_four_out[0]+pts_four_in[1]-pts_four_in[3]]),np.vstack([pts_four_out[1],pts_four_out[1]+pts_four_in[1]-pts_four_in[2]]))
+        if np.any(np.isnan(pts_four_out[3])):
+            pts_four_out[3] = Intersection_2D(np.vstack([pts_four_out[0],pts_four_out[0]+pts_four_in[0]-pts_four_in[3]]),np.vstack([pts_four_out[1],pts_four_out[1]+pts_four_in[0]-pts_four_in[2]]))
+    elif np.all(~np.isnan(pts_four_out[[2,3]])):
+        if np.any(np.isnan(pts_four_out[0])):
+            pts_four_out[0] = Intersection_2D(np.vstack([pts_four_out[2],pts_four_out[2]+pts_four_in[1]-pts_four_in[3]]),np.vstack([pts_four_out[3],pts_four_out[3]+pts_four_in[0]-pts_four_in[3]]))
+        if np.any(np.isnan(pts_four_out[1])):
+            pts_four_out[1] = Intersection_2D(np.vstack([pts_four_out[2],pts_four_out[2]+pts_four_in[1]-pts_four_in[2]]),np.vstack([pts_four_out[3],pts_four_out[3]+pts_four_in[0]-pts_four_in[2]]))
+
+    assert np.all(~np.isnan(pts_four_out)), "Invalid computation."
+
+    return pts_four_out
+
+def Intersection_2D(pts_two_1, pts_two_2):
+    '''
+    pts_two_1[2,2]: Input line defined by the two points that the line pass through.
+    pts_two_2[2,2]: Input line defined by the two points that the line pass through.
+    '''
+    # Calculate the slope of the first line
+    slope_1 = (pts_two_1[1,1]-pts_two_1[0,1])/(pts_two_1[1,0]-pts_two_1[0,0]) if (pts_two_1[1,0]-pts_two_1[0,0]) != 0 else float('inf')
+
+    # Calculate the slope of the second line
+    slope_2 = (pts_two_2[1,1]-pts_two_2[0,1])/(pts_two_2[1,0]-pts_two_2[0,0]) if (pts_two_2[1,0]-pts_two_2[0,0]) != 0 else float('inf')
+
+    # Check if the lines are parallel
+    if slope_1 == slope_2:
+        return None  # Lines are parallel, no intersection
+
+    # Calculate the intersection point
+    if slope_1 == float('inf'):  # First line is vertical
+        x_intersect = pts_two_1[0,0]
+        y_intersect = slope_2 * (pts_two_1[0,0] - pts_two_2[0,0]) + pts_two_2[0,1]
+    elif slope_2 == float('inf'):  # Second line is vertical
+        x_intersect = pts_two_2[0,0]
+        y_intersect = slope_1 * (pts_two_2[0,0] - pts_two_1[0,0]) + pts_two_1[0,1]
+    else:
+        x_intersect = (slope_1 * pts_two_1[0,0] - slope_2 * pts_two_2[0,0] + pts_two_2[0,1] - pts_two_1[0,1]) / (slope_1 - slope_2)
+        y_intersect = slope_1 * (x_intersect - pts_two_1[0,0]) + pts_two_1[0,1]
+
+    return np.array([x_intersect,y_intersect])
+
+def Dual_Isothermic(pts,members,fix,load):
 
     nn = len(pts) # number of nodes
     nm = len(members) # number of bar members
