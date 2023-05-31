@@ -253,8 +253,8 @@ vec = (2*nodes[np.take(load_i,load_i.size//2)]-nodes[second_tip_nodes[0]]-nodes[
 '''
 Step 3: Rotate the shape
 '''
-nodes = DHF.Rotation_by_vector(nodes,np.array([0,0,1]),np.pi)#-np.arctan(vec[1]/vec[0]))
-load = DHF.Rotation_by_vector(load,np.array([0,0,1]),np.pi)#-np.arctan(vec[1]/vec[0]))
+nodes = DHF.Rotation_by_vector(nodes,np.array([0,0,1]),-np.arctan(vec[1]/vec[0]))
+load = DHF.Rotation_by_vector(load,np.array([0,0,1]),-np.arctan(vec[1]/vec[0]))
 # np.savetxt(r"result\node_init.dat",nodes, delimiter=',')
 
 '''
