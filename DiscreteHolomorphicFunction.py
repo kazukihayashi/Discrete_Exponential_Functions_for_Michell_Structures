@@ -1,10 +1,27 @@
 import numpy as np
-from scipyx import ellipj
-from scipy.special import ellipk
+from scipy.special import ellipj,ellipk
 
 def Quads_in(F,N_u,N_v,param_scale=1,shape_scale=1):
     '''
-    CAUTION: param_scale must be 1 if enforcing isothermality.
+    Generate a planar quadlirateral mesh onto a complex plane using function F.
+
+    (input)
+
+    F: (u<float>,v<float>) => <complex>: Function that outputs a complex number from two float parameters u and v.
+
+    N_u<int>: number of grids in u (or n) direction
+
+    N_v<int>: number of grids in v (or m) direction
+
+    param_scale<float> : interval of parameters (u,v). This value must be 1 if enforcing isothermicity.
+
+    shape_scale<float> : overall shape scaling factor
+
+    (output)
+
+    pts*shape_scale[(N_u+1)*(N_v+1),3] : Nodal positions (z coordinates are all 0)
+
+    quads[N_u*N_v,4] : Node indices representing the corners of quad elements
     '''
 
     pts = np.empty(((N_u+1)*(N_v+1),3),dtype=np.float64)
@@ -96,11 +113,15 @@ def Rotation_by_vector(node,v,theta):
     Rotate nodes by theta [rad] around vector v.
     
     (input)
+
     node[n,3]<float>: nodal coordinates
-    v[3]<float>     : vector
+
+    v[3]<float>     : axis vector
+
     theta<float>    : rotation degree in counter-clockwise direction
 
     (output)
+
     node_rotated[n,3]<float>: rotated nodal coordinates
     '''
     c = np.cos(theta)
@@ -116,6 +137,18 @@ def Rotation_by_vector(node,v,theta):
 def Flip_V(pts_in,N_u,N_v):
     '''
     Flip the nodal indexing in u direction.
+
+    (input)
+
+    pts_in[:,3]<float>: input nodal positions
+
+    N_u<int>: number of grids in u (or n) direction
+
+    N_v<int>: number of grids in v (or m) direction
+
+    (output)
+
+    pts_out[:,3]<float>: nodal positions same as pts_in with indexing in u direction flipped
     '''
     pts_out = np.empty_like(pts_in)
     for i in range(N_v+1):
@@ -127,13 +160,19 @@ def Diagonal_Lines_Connectivity(N_u,N_v,flip=True):
     Create a Michell-like wheel topology from grid information N_u and N_v.
 
     (input)
-    N_u<int>: number of grids in n direction
-    N_v<int>: number of grids in m direction
+
+    N_u<int>: number of grids in u (or n) direction
+
+    N_v<int>: number of grids in v (or m) direction
+
     flip<bool>: If True, flip the diagonals and take the members next to those in the case "Flip=False".
 
     (output)
+
     diag_c[idx,2]<int>: connectivity of bar members comprising a Michell-like structure
+
     fix_i[:]<int>: indices of the fixed nodes
+
     load_i[1]<int>: index of the loaded node
     '''
 
@@ -156,15 +195,22 @@ def Diagonal_Lines_Connectivity_Partial(N_u,N_v,flip=False,load="tip"):
     Create a partial Michell-like topology from grid information N_u and N_v.
 
     (input)
-    N_u<int>: number of grids in n direction
-    N_v<int>: number of grids in m direction
+
+    N_u<int>: number of grids in u (or n) direction
+
+    N_v<int>: number of grids in v (or m) direction
+
     flip<bool>: If True, flip the diagonals and take the members next to those in the case "Flip=False".
+
     load<str>: "tip": the load is applied to tip node only
                "outer": the load is applied to outer free nodes
 
     (output)
+
     diag_c[idx,2]<int>: connectivity of bar members comprising a Michell-like structure
+
     fix_i[:]<int>: indices of the fixed nodes
+
     load_i[1]<int>: index of the loaded node (tip node only)
     '''
     if N_u*2 != N_v:

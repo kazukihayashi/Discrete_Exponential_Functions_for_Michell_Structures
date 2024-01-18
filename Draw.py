@@ -85,7 +85,7 @@ def MeshLine3D(pts_all,lines,quads,mesh_color_list,alpha,caption_list,name,angle
     plt.show()
     return
 
-def Truss2D(pts_all,lines,fix,load,force,n_color,label,n_size,n_marker,l_width,l_color,name):
+def Truss2D(pts_all,lines,fix,load,n_color,label,n_size,n_marker,l_width,l_color,name,force=None,load_vec_scale=1):
     if len(pts_all.shape)==2:
         pts_all = pts_all.reshape(1,*pts_all.shape)
         n_color = [n_color]
@@ -103,9 +103,8 @@ def Truss2D(pts_all,lines,fix,load,force,n_color,label,n_size,n_marker,l_width,l
     loaded_2[:len(loaded)//2] = False
     loaded_1 = np.copy(loaded)
     loaded_1[len(loaded)//2:] = False
-    ptx = pts_all[0,loaded,0] # ptx = np.concatenate([pts_all[0,loaded_1,0]-load[loaded_1,0]*0.85,pts_all[0,loaded_2,0]])
-    pty = pts_all[0,loaded,1] # pty = np.concatenate([pts_all[0,loaded_1,1]-load[loaded_1,1]*0.85,pts_all[0,loaded_2,1]])
-    ax.quiver(ptx,pty,load[loaded,0],load[loaded,1],color="red",scale=2,zorder=-20)
+    ax.quiver(pts_all[0,loaded_1,0],pts_all[0,loaded_1,1],load[loaded_1,0],load[loaded_1,1],color="red",pivot='tip',scale=1/load_vec_scale)
+    ax.quiver(pts_all[0,loaded_2,0],pts_all[0,loaded_2,1],load[loaded_2,0],load[loaded_2,1],color="red",pivot='tail',scale=1/load_vec_scale)
 
     if label is not None:
         line_ends = np.array([pts_all[0,lines[j,:]] for j in range(len(lines))])
@@ -115,14 +114,19 @@ def Truss2D(pts_all,lines,fix,load,force,n_color,label,n_size,n_marker,l_width,l
 
     # ax.quiver(pts_all[0,loaded,0],pts_all[0,loaded,1],load[loaded,0],load[loaded,1],color="red")
     line_ends = np.array([pts_all[-1,lines[j,:]] for j in range(len(lines))]) # using only the last set of points
-    divnorm=colors.SymLogNorm(linthresh=0.101,vmin=-1.5,vmax=1.5)# colors.TwoSlopeNorm(vcenter=0.0,vmin=-1.5,vmax=1.5)
-    lc2 = LineCollection(line_ends,linewidth=l_width,cmap=cm,colors=l_color[1],alpha=0.4,norm=divnorm,zorder=-5)
-    # lc2.set_array(force)
+    divnorm=colors.SymLogNorm(linthresh=0.101,vmin=-1.5,vmax=1.5)#(linthresh=0.101,vmin=-1.5,vmax=1.5)# colors.TwoSlopeNorm(vcenter=0.0,vmin=-1.5,vmax=1.5)
+    
+    if force is not None:
+        lc2 = LineCollection(line_ends,linewidth=l_width,cmap=cm,norm=divnorm,zorder=-5)
+        lc2.set_array(force)
+    else:
+        lc2 = LineCollection(line_ends,linewidth=l_width,cmap=cm,colors=l_color[1],alpha=0.4,norm=divnorm,zorder=-5)
     ax.add_collection(lc2)
-    # axcb = plt.colorbar(lc2) 
-    # axcb.set_label("(compression)   axial force [N]   (tension)")
+    if force is not None:
+        axcb = plt.colorbar(lc2) 
+        axcb.set_label("(compression)   axial force [N]   (tension)")
     ax.axis('equal')
-    # ax.axis("off")
+    ax.axis("off")
     ax.xaxis.set_major_formatter(FormatStrFormatter('%.1f'))
     ax.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
     ax.spines['top'].set_visible(False)
@@ -133,7 +137,7 @@ def Truss2D(pts_all,lines,fix,load,force,n_color,label,n_size,n_marker,l_width,l
     plt.show()
     plt.close()
 
-def Truss3D(pts_all,lines,fix,load,force,n_color,label,n_size,l_width,name,angle=None):
+def Truss3D(pts_all,lines,fix,load,n_color,label,n_size,l_width,name,angle=None,force=None, load_vec_scale=1):
     if len(pts_all.shape)==2:
         pts_all = pts_all.reshape(1,*pts_all.shape)
         n_color = [n_color]
@@ -152,10 +156,8 @@ def Truss3D(pts_all,lines,fix,load,force,n_color,label,n_size,l_width,name,angle
     loaded_2[:len(loaded)//2] = False
     loaded_1 = np.copy(loaded)
     loaded_1[len(loaded)//2:] = False
-    ptx = np.concatenate([pts_all[0,loaded_1,0]-load[loaded_1,0]*0.95,pts_all[0,loaded_2,0]])#ptx = pts_all[0,loaded,0] # ptx = np.concatenate([pts_all[0,loaded_1,0]-load[loaded_1,0]*0.85,pts_all[0,loaded_2,0]])
-    pty = np.concatenate([pts_all[0,loaded_1,1]-load[loaded_1,1]*0.95,pts_all[0,loaded_2,1]])#pty = pts_all[0,loaded,1] # pty = np.concatenate([pts_all[0,loaded_1,1]-load[loaded_1,1]*0.85,pts_all[0,loaded_2,1]])
-    ptz = np.concatenate([pts_all[0,loaded_1,2]-load[loaded_1,2]*0.95,pts_all[0,loaded_2,2]])#ptz = pts_all[0,loaded,2] # ptz = np.concatenate([pts_all[0,loaded_1,2]-load[loaded_1,2]*0.85,pts_all[0,loaded_2,2]])
-    ax.quiver3D(ptx,pty,ptz,load[loaded,0],load[loaded,1],load[loaded,2],color="red")
+    ax.quiver(pts_all[0,loaded_1,0],pts_all[0,loaded_1,1],pts_all[0,loaded_1,2],load[loaded_1,0]*load_vec_scale,load[loaded_1,1]*load_vec_scale,load[loaded_1,2]*load_vec_scale,color="red",pivot='tip')
+    ax.quiver(pts_all[0,loaded_2,0],pts_all[0,loaded_2,1],pts_all[0,loaded_2,2],load[loaded_2,0]*load_vec_scale,load[loaded_2,1]*load_vec_scale,load[loaded_2,2]*load_vec_scale,color="red",pivot='tail')
 
     if label is not None:
         line_ends = np.array([pts_all[0,lines[j,:]] for j in range(len(lines))])
@@ -165,11 +167,16 @@ def Truss3D(pts_all,lines,fix,load,force,n_color,label,n_size,l_width,name,angle
 
     line_ends = np.array([pts_all[-1,lines[j,:]] for j in range(len(lines))]) # using only the last set of points
     divnorm=colors.SymLogNorm(linthresh=0.04,vmin=-1,vmax=1)#divnorm=colors.TwoSlopeNorm(vcenter=0.0,vmin=-0.45,vmax=0.45)
-    lc2 = Line3DCollection(line_ends,linewidth=l_width,cmap=cm,colors=(0.0,0.0,0.0,0.2),norm=divnorm,zorder=-5)
-    lc2.set_array(force)
+    if force is not None:
+        lc2 = Line3DCollection(line_ends,linewidth=l_width,cmap=cm,norm=divnorm,zorder=-5)
+        lc2.set_array(force)
+    else:
+        lc2 = Line3DCollection(line_ends,linewidth=l_width,cmap=cm,colors=(0.0,0.0,0.0,0.2),norm=divnorm,zorder=-5)
+
     ax.add_collection3d(lc2)
-    axcb = plt.colorbar(lc2,shrink=0.8) 
-    axcb.set_label("(compression)   axial force [N]   (tension)")
+    if force is not None:
+        axcb = plt.colorbar(lc2,shrink=0.8) 
+        axcb.set_label("(compression)   axial force [N]   (tension)")
 
     lb = np.min(pts_all.reshape(-1,3),axis=0)
     ub = np.max(pts_all.reshape(-1,3),axis=0)
@@ -189,9 +196,8 @@ def Truss3D(pts_all,lines,fix,load,force,n_color,label,n_size,l_width,name,angle
     ax.w_xaxis.line.set_color((1.0,1.0,1.0,0.0))
     ax.w_yaxis.line.set_color((1.0,1.0,1.0,0.0))
     ax.w_zaxis.line.set_color((1.0,1.0,1.0,0.0))
-    # ax.axis("off")
+    ax.axis("off")
     
-
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     if label is not None:

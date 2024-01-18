@@ -5,15 +5,28 @@ import Draw
 import DiscreteHolomorphicFunction as DHF
 import GraphicStatics
 import LinearStructuralAnalysis_Truss as LSAt
+import argparse
 
-N_u = 8 # must be even value, and equal or less than N_v//2
-N_v = 16
-pts_for_structural_analysis = "pts_invstr" # "pts_in" or "pts_invstr" or "pts_invstr_rot_str"
-layout = "partial" # "full" or "partial"
-load_condition = "tip" # "tip" or "outer" (This does not affect the results when layout="full")
-load_computation = "Christoffel" # "Christoffel" or "shear"
+parser = argparse.ArgumentParser()
+parser.add_argument("--nu",help="number of units in u-direction",default=8,type=int)
+parser.add_argument("--nv",help="number of units in v-direction",default=16,type=int)
+parser.add_argument("--point_type",help="Point type for structural analysis. pts_in: 2D model constructed from the discrete isothermic surface; pts_invstr: Spherical shape after the inverse of stereographic projection; pts_invstr_rot_str: Mobius transformation is further applied to generate an eccentric planar shape.",default="pts_in",type=str)
+parser.add_argument("--layout",help="full: Full shape; partial: Partial shape.",default="full",type=str)
+parser.add_argument("--load_condition",help="Load condition. tip: only tip nodes are loaded. outer: outer unsupported nodes are loaded. This setting does not affect the results when layout=full.",default="outer",type=str)
+parser.add_argument("--load_computation",help="How the loaded are computed. Christoffel: Loads are computed by the Christoffel transform of the discrete isothermic surface; shear: Loads are computed by the shear forces that are considered to be in equilibrium in the discrete isothermic surface.",default="shear",type=str)
+parser.add_argument("--Mobius_angle",help="Rotation angle for Mobius transformation. This does not affect the results unless pts_for_structural_analysis = pts_invstr_rot_str.",default=0.0,type=float)
+parser.add_argument("--lv_scale",help="Scaling factor for displaying load vectors",default=1,type=float)
+args = parser.parse_args()
+
+N_u = args.nu # must be even value, and equal or less than N_v//2
+N_v = args.nv
+pts_for_structural_analysis = args.point_type # "pts_in" or "pts_invstr" or "pts_invstr_rot_str"
+layout = args.layout # "full" or "partial"
+load_condition = args.load_condition # "tip" or "outer" (This does not affect the results when layout="full")
+load_computation = args.load_computation # "Christoffel" or "shear"
 rotation_axis = (0.0,-0.1**0.5,0.9**0.5) # This does not affect the results unless pts_for_structural_analysis = "pts_invstr_rot_str"
-rotation_angle = np.pi/8 # This does not affect the results unless pts_for_structural_analysis = "pts_invstr_rot_str"
+rotation_angle = args.Mobius_angle # This does not affect the results unless pts_for_structural_analysis = "pts_invstr_rot_str"
+load_vec_display_scale = args.lv_scale
 
 if layout == "full":
     function_rule = "azimuth"
@@ -130,8 +143,8 @@ captions = np.array((
 '''
 Step 6: Draw
 '''
-Draw.MeshLine2D(pts_all[[0]],diag_connectivity,quads,colors[[0]],0.3,captions[[0]],r"result\plan.pdf")
-Draw.MeshLine3D(pts_all[[6]],diag_connectivity,quads,colors[[6]],0.3,captions[[6]],r"result\axo.pdf",angle=[45,60])
+# Draw.MeshLine2D(pts_all[[0]],diag_connectivity,quads,colors[[0]],0.3,captions[[0]],r"result\plan.pdf")
+# Draw.MeshLine3D(pts_all[[6]],diag_connectivity,quads,colors[[6]],0.3,captions[[6]],r"result\axo.pdf",angle=[45,60])
 
 '''
 (optional)
@@ -151,6 +164,7 @@ if pts_for_structural_analysis == "pts_in":
     pts_for_structural_analysis = pts_in
     pts_force = pts_chr
 elif pts_for_structural_analysis == "pts_invstr":
+    pts_in = pts_invstr # !!!
     pts_for_structural_analysis = pts_invstr
     pts_force = pts_invstr_chr
 elif pts_for_structural_analysis == "pts_invstr_rot_str":
@@ -181,12 +195,14 @@ elif load_computation == "shear":
         m, n = np.divmod(i,N_u+1)
         if n == N_u:
             d = (pts_in[(m+1)*(N_u+1)+n]-pts_in[(m-1)*(N_u+1)+n])
+            d /= (np.linalg.norm(d)**2)*0.5
             total_load_vector_length += np.linalg.norm(d)*np.sqrt(2)
         else:
             if i > (N_u+1)*(N_v)/2+N_u:
                 d = pts_in[m*(N_u+1)+n+1]+pts_in[(m+1)*(N_u+1)+n]-2*pts_in[m*(N_u+1)+n]
             else:
                 d = 2*pts_in[m*(N_u+1)+n]-pts_in[m*(N_u+1)+n+1]-pts_in[(m-1)*(N_u+1)+n]
+            d /= np.linalg.norm(d)**2
             total_load_vector_length += np.linalg.norm(d)
         load[i] = d
 
@@ -264,9 +280,9 @@ internal_force = LSAt.Axial_Force_Determinate(nodes,members,fix,load)
 # GraphicStatics.Dual_Isothermic(nodes,members,fix,load) # NOTE: This method properly works only when 2D and DHF.Diagonal_Lines_Connectivity_One() method with load="tip" is used in Step 4 in Part 1.
 
 if is3D:
-    Draw.Truss3D(nodes,members,np.any(fix[:,0:2],axis=1),load,internal_force,n_color=["None"],label=None,n_size=[5],l_width=2,name=r"result\truss_opt.png")
+    Draw.Truss3D(nodes,members,np.any(fix[:,0:2],axis=1),load,n_color=["None"],label=None,n_size=[5],l_width=2,name=r"result\truss_opt.png",force=internal_force,load_vec_scale=load_vec_display_scale)
 else:
-    Draw.Truss2D(nodes,members,np.any(fix[:,0:2],axis=1),load,internal_force,n_color=["None"],label=None,n_size=[5],n_marker=["o"],l_width=2,l_color=["black","black"],name=r"result\truss_opt.png")
+    Draw.Truss2D(nodes,members,np.any(fix[:,0:2],axis=1),load,n_color=["None"],label=None,n_size=[5],n_marker=["o"],l_width=2,l_color=["black","black"],name=r"result\truss_opt.png",force=internal_force,load_vec_scale=load_vec_display_scale)
 
 '''
 Appx A: Obtain the self-equilibrium mode (set of internal force distribution);
@@ -336,6 +352,7 @@ Step 7: Solve the optimization problem to obtain the true stationary point of Mi
 '''
 nodes_opt, _ = LSAt.Optimize_Force_Length(nodes,members,fix,load,is_variable,lb=nodes[is_variable]-1.1,ub=nodes[is_variable]+1.1,tol=1.0e-7)
 objfun = np.sum(LSAt.Length(nodes_opt,members)*np.abs(LSAt.Axial_Force_Determinate(nodes_opt,members,fix,load)))
+ff = LSAt.Axial_Force_Determinate(nodes_opt,members,fix,load)
 
 print(f"objective function (axial force x length) = {objfun}")
 print(f"Max. change in nodal position: {np.max(np.linalg.norm(nodes_opt-nodes,axis=1))}")
@@ -344,8 +361,8 @@ print(f"Max. change in nodal position: {np.max(np.linalg.norm(nodes_opt-nodes,ax
 Step 8: Visualize the optimal shape
 '''
 if is3D:
-    Draw.Truss3D(np.stack((nodes,nodes_opt)),members,np.any(fix[:,0:2],axis=1),load*10,internal_force,n_color=[(0.2,0.8,0.0),(0.2,0.0,0.8)],label=["before","after"],n_size=[5,10],l_width=2,name=r"result\truss_opt.png")
+    Draw.Truss3D(np.stack((nodes,nodes_opt)),members,np.any(fix[:,0:2],axis=1),load,n_color=[(0.2,0.8,0.0),(0.2,0.0,0.8)],label=["before","after"],n_size=[5,10],l_width=2,name=r"result\truss_opt.png",force=None)
 else:
-    Draw.Truss2D(np.stack((nodes,nodes_opt)),members,np.any(fix[:,0:2],axis=1),load,internal_force,n_color=[(0.6,0.6,0.6),(0.0,0.0,0.0)],label=["before","after"],n_size=[20,30],n_marker=["s","o"],l_width=2,l_color=["black","black"],name=r"result\truss_opt.png")
+    Draw.Truss2D(np.stack((nodes,nodes_opt)),members,np.any(fix[:,0:2],axis=1),load,n_color=[(0.6,0.6,0.6),(0.0,0.0,0.0)],label=["before","after"],n_size=[20,30],n_marker=["s","o"],l_width=2,l_color=["black","black"],name=r"result\truss_opt.png",force=None)
 # np.savetxt(r"result\node_opt.dat",nodes_opt, delimiter=',')
 # GraphicStatics.Dual_Isothermic(nodes_opt,members,fix,load) # This method properly works only when 2D and DHF.Diagonal_Lines_Connectivity_One() method with load="tip" is used in Step 4 in Part 1.
