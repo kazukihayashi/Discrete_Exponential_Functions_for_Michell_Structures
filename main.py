@@ -158,7 +158,7 @@ To reproduce the Michell sphere, please make sure that
 # Draw.MeshLine3D(pts_mirror[np.newaxis,:,:],np.vstack([diag_connectivity,diag_connectivity+len(pts_all[2])]),np.zeros((1,4),dtype=int),colors[[2]],0.3,captions[[2]],r"result\axo.pdf",angle=[0,0])
 
 '''
-Please modify the following codes depending on using 2D model or its inverse stereographic project (3D) hereafter.
+Step 7: Determine which structural shape is used for structural analysis and optimization
 '''
 if pts_for_structural_analysis == "pts_in":
     pts_for_structural_analysis = pts_in
@@ -174,7 +174,7 @@ else:
     raise Exception("Invalid pts_for_structural_analysis parameter")
 
 '''
-Step 7: Assign nodal loads
+Step 8: Assign nodal loads
 '''
 load = np.zeros_like(pts_in)
 
